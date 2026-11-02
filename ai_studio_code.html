@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CAPTCHA Labeler</title>
+    <style>
+         :root {
+            --primary: #4f46e5;
+            --primary-hover: #4338ca;
+            --bg-page: #f8fafc;
+            --bg-card: #ffffff;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+            --success: #10b981;
+            --success-hover: #059669;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --radius: 12px;
+            --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        body {
+            background-color: var(--bg-page);
+            color: var(--text-main);
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            padding-bottom: 24px;
+        }
+        /* Header & Progress Bar */
+        
+        header {
+            background-color: var(--bg-card);
+            border-bottom: 1px solid var(--border);
+            padding: 12px 16px;
+            position: sticky;
+            top: 0;
+            z-index: 20;
+        }
+        
+        .header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        
+        .title {
+            font-size: 1.15rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .btn-icon {
+            background: none;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 6px 10px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .progress-track {
+            width: 100%;
+            height: 6px;
+            background-color: var(--border);
+            border-radius: 999px;
+            overflow: hidden;
+            margin-top: 6px;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background-color: var(--primary);
+            width: 0%;
+            transition: width 0.25s ease-out;
+        }
+        
+        .stats-text {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+        /* Layout Containers */
+        
+        main {
+            flex: 1;
+            width: 100%;
+            max-width: 520px;
+            margin: 0 auto;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        
+        .card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 16px;
+            box-shadow: var(--shadow);
+        }
+        /* Setup Card */
+        
+        #setup-view {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .field-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        
+        .field-group label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+        
+        input[type="text"],
+        input[type="password"] {
+            width: 100%;
+            padding: 12px 14px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 16px;
+            /* Prevents auto-zoom on iOS */
+            outline: none;
+            transition: border-color 0.15s ease;
+        }
+        
+        input:focus {
+            border-color: var(--primary);
+        }
+        /* Labeling View */
+        
+        #labeling-view {
+            display: none;
+            flex-direction: column;
+            gap: 16px;
+        }
+        
+        .image-container {
+            width: 100%;
+            min-height: 160px;
+            max-height: 240px;
+            border: 1px dashed var(--border);
+            border-radius: 8px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            /* Subtle checkerboard pattern for transparent CAPTCHAs */
+            background-color: #f1f5f9;
+            background-image: linear-gradient(45deg, #e2e8f0 25%, transparent 25%), linear-gradient(-45deg, #e2e8f0 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e2e8f0 75%), linear-gradient(-45deg, transparent 75%, #e2e8f0 75%);
+            background-size: 16px 16px;
+            background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
+            position: relative;
+        }
+        
+        .image-container img {
+            max-width: 100%;
+            max-height: 220px;
+            object-fit: contain;
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: crisp-edges;
+        }
+        
+        .meta-filename {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-align: center;
+            word-break: break-all;
+        }
+        
+        .label-input {
+            font-size: 1.3rem !important;
+            font-weight: 700;
+            text-align: center;
+            letter-spacing: 2px;
+        }
+        /* Buttons */
+        
+        .btn {
+            width: 100%;
+            min-height: 48px;
+            padding: 12px 16px;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            transition: background-color 0.15s ease, opacity 0.15s ease;
+        }
+        
+        .btn:active {
+            transform: scale(0.98);
+        }
+        
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .btn-primary {
+            background-color: var(--primary);
+            color: #ffffff;
+        }
+        
+        .btn-primary:hover {
+            background-color: var(--primary-hover);
+        }
+        
+        .btn-success {
+            background-color: var(--success);
+            color: #ffffff;
+        }
+        
+        .btn-success:hover {
+            background-color: var(--success-hover);
+        }
+        
+        .btn-secondary {
+            background-color: #f1f5f9;
+            color: var(--text-main);
+            border: 1px solid var(--border);
+        }
+        
+        .btn-row {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 8px;
+        }
+        
+        .export-section {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 8px;
+            border-top: 1px solid var(--border);
+            padding-top: 16px;
+        }
+        
+        .spinner {
+            border: 3px solid rgba(0, 0, 0, 0.1);
+            border-top: 3px solid var(--primary);
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 0.8s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+        /* Toast Notification */
+        
+        #toast {
+            position: fixed;
+            bottom: 16px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background-color: #1e293b;
+            color: #ffffff;
+            padding: 10px 18px;
+            border-radius: 30px;
+            font-size: 0.85rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+            transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+            z-index: 100;
+            pointer-events: none;
+            max-width: 90%;
+            text-align: center;
+        }
+        
+        #toast.show {
+            transform: translateX(-50%) translateY(0);
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Top App Bar -->
+    <header>
+        <div class="header-top">
+            <div class="title">🏷️ CAPTCHA Labeler</div>
+            <button class="btn-icon" id="btn-toggle-config">⚙️ Settings</button>
+        </div>
+        <div class="progress-track">
+            <div class="progress-fill" id="progress-bar"></div>
+        </div>
+        <div class="stats-text">
+            <span id="stat-progress">0 of 0 completed</span>
+            <span id="stat-remaining">0 remaining</span>
+        </div>
+    </header>
+
+    <main>
+        <!-- Setup Card -->
+        <section class="card" id="setup-view">
+            <h2 style="font-size: 1.1rem; margin-bottom: 4px;">Repository Setup</h2>
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 8px;">
+                Connect to your GitHub repo to fetch images and <code>manifest.csv</code>.
+            </p>
+
+            <div class="field-group">
+                <label for="input-repo">Repository (owner/repo)</label>
+                <input type="text" id="input-repo" placeholder="octocat/captcha-dataset" value="VaranasiRajesh612/OCR" autocomplete="off" autocorrect="off" autocapitalize="off">
+            </div>
+
+            <div class="field-group">
+                <label for="input-token">Personal Access Token (PAT)</label>
+                <input type="password" id="input-token" placeholder="ghp_xxxxxxxxxxxx" value="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" autocomplete="off">
+                <small style="font-size: 0.7rem; color: var(--text-muted);">
+          Needs <code>repo</code> scope (or <code>contents:write</code> fine-grained permission).
+        </small>
+            </div>
+
+            <div class="field-group">
+                <label for="input-branch">Branch & CSV Path</label>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                    <input type="text" id="input-branch" placeholder="main" value="main">
+                    <input type="text" id="input-path" placeholder="image_dataset/manifest.csv" value="image_dataset/manifest.csv">
+                </div>
+            </div>
+
+            <button class="btn btn-primary" id="btn-load-data">Load Manifest</button>
+        </section>
+
+        <!-- Labeling Card -->
+        <section class="card" id="labeling-view">
+            <div class="image-container" id="img-wrapper">
+                <div class="spinner" id="img-spinner"></div>
+                <img id="captcha-img" src="" alt="CAPTCHA" style="display: none;">
+            </div>
+            <div class="meta-filename" id="file-name-display">filename.png</div>
+
+            <form id="label-form" onsubmit="return false;">
+                <div class="field-group">
+                    <input type="text" id="input-label" class="label-input" placeholder="Type here" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+                </div>
+
+                <div class="btn-row" style="margin-top: 12px;">
+                    <button type="button" class="btn btn-secondary" id="btn-skip">Skip</button>
+                    <button type="submit" class="btn btn-primary" id="btn-submit">Submit ⏎</button>
+                </div>
+            </form>
+
+            <!-- Export / Save Section -->
+            <div class="export-section">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                    <button class="btn btn-secondary" id="btn-download">💾 Download CSV</button>
+                    <button class="btn btn-success" id="btn-commit">🚀 Commit to GitHub</button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <div id="toast">Notification</div>
+
+    <script>
+        // --- Application State ---
+        let state = {
+            repo: 'VaranasiRajesh612/OCR',
+            token: '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',
+            branch: 'main',
+            path: 'image_dataset/manifest.csv',
+            fileSha: null, // Required for GitHub API commits
+            rows: [], // Array of objects { filename, label, status, ... }
+            headers: [], // Raw headers from manifest.csv
+            currentIndex: -1,
+            currentBlobUrl: null
+        };
+
+        // --- DOM Elements ---
+        const setupView = document.getElementById('setup-view');
+        const labelingView = document.getElementById('labeling-view');
+        const btnToggleConfig = document.getElementById('btn-toggle-config');
+        const btnLoadData = document.getElementById('btn-load-data');
+        const captchaImg = document.getElementById('captcha-img');
+        const imgSpinner = document.getElementById('img-spinner');
+        const fileNameDisplay = document.getElementById('file-name-display');
+        const inputLabel = document.getElementById('input-label');
+        const labelForm = document.getElementById('label-form');
+        const btnSkip = document.getElementById('btn-skip');
+        const btnDownload = document.getElementById('btn-download');
+        const btnCommit = document.getElementById('btn-commit');
+        const progressBar = document.getElementById('progress-bar');
+        const statProgress = document.getElementById('stat-progress');
+        const statRemaining = document.getElementById('stat-remaining');
+        const toastEl = document.getElementById('toast');
+
+        // --- Toast Helper ---
+        function showToast(message, duration = 3000) {
+            toastEl.textContent = message;
+            toastEl.classList.add('show');
+            setTimeout(() => toastEl.classList.remove('show'), duration);
+        }
+
+        // --- Load Cached Credentials from Local Storage or Defaults ---
+        window.addEventListener('DOMContentLoaded', () => {
+            const defaultRepo = 'VaranasiRajesh612/OCR';
+            const defaultToken = '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';
+            const defaultBranch = 'main';
+            const defaultPath = 'image_dataset/manifest.csv';
+
+            const repoInput = document.getElementById('input-repo');
+            const tokenInput = document.getElementById('input-token');
+            const branchInput = document.getElementById('input-branch');
+            const pathInput = document.getElementById('input-path');
+
+            repoInput.value = localStorage.getItem('gh_repo') || defaultRepo;
+            tokenInput.value = localStorage.getItem('gh_token') || defaultToken;
+            branchInput.value = localStorage.getItem('gh_branch') || defaultBranch;
+            pathInput.value = (localStorage.getItem('gh_path') && localStorage.getItem('gh_path') !== 'manifest.csv') 
+                ? localStorage.getItem('gh_path') 
+                : defaultPath;
+
+            // Automatically load manifest so the user goes straight to labeling
+            btnLoadData.click();
+        });
+
+        // Toggle Config View
+        btnToggleConfig.addEventListener('click', () => {
+            setupView.style.display = setupView.style.display === 'none' ? 'flex' : 'none';
+        });
+
+        // --- CSV Parser & Serializer ---
+        function parseCSV(text) {
+            const lines = [];
+            let row = [''];
+            let inQuotes = false;
+
+            for (let i = 0; i < text.length; i++) {
+                const char = text[i];
+                const next = text[i + 1];
+
+                if (char === '"') {
+                    if (inQuotes && next === '"') {
+                        row[row.length - 1] += '"';
+                        i++;
+                    } else {
+                        inQuotes = !inQuotes;
+                    }
+                } else if (char === ',' && !inQuotes) {
+                    row.push('');
+                } else if ((char === '\r' || char === '\n') && !inQuotes) {
+                    if (char === '\r' && next === '\n') i++;
+                    if (row.length > 1 || row[0] !== '') lines.push(row);
+                    row = [''];
+                } else {
+                    row[row.length - 1] += char;
+                }
+            }
+            if (row.length > 1 || row[0] !== '') lines.push(row);
+            if (lines.length === 0) return {
+                headers: [],
+                rows: []
+            };
+
+            // Normalize headers to lowercase for internal indexing
+            const rawHeaders = lines[0].map(h => h.trim());
+            const normalizedHeaders = rawHeaders.map(h => h.toLowerCase());
+
+            const parsedRows = lines.slice(1).map(line => {
+                const item = {};
+                normalizedHeaders.forEach((key, index) => {
+                    item[key] = line[index] !== undefined ? line[index].trim() : '';
+                });
+                return item;
+            });
+
+            return {
+                headers: rawHeaders,
+                rows: parsedRows
+            };
+        }
+
+        function serializeCSV(rows, originalHeaders) {
+            // Ensure required columns exist
+            let headers = originalHeaders.map(h => h.toLowerCase());
+            ['filename', 'label', 'status'].forEach(req => {
+                if (!headers.includes(req)) headers.push(req);
+            });
+
+            const escapeField = (val) => {
+                const str = (val === undefined || val === null) ? '' : String(val);
+                if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+                    return `"${str.replace(/"/g, '""')}"`;
+                }
+                return str;
+            };
+
+            const csvLines = [headers.join(',')];
+            rows.forEach(r => {
+                const line = headers.map(h => escapeField(r[h] || ''));
+                csvLines.push(line.join(','));
+            });
+
+            return csvLines.join('\r\n');
+        }
+
+        // --- Base64 UTF-8 Encoding/Decoding ---
+        function utf8ToBase64(str) {
+            return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (_, p1) =>
+                String.fromCharCode(parseInt(p1, 16))
+            ));
+        }
+
+        function base64ToUtf8(str) {
+            return decodeURIComponent(Array.prototype.map.call(atob(str), (c) =>
+                '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
+            ).join(''));
+        }
+
+        // --- Data Loading Workflow ---
+        btnLoadData.addEventListener('click', async() => {
+            let repo = document.getElementById('input-repo').value.trim();
+            const token = document.getElementById('input-token').value.trim();
+            const branch = document.getElementById('input-branch').value.trim() || 'main';
+            const path = document.getElementById('input-path').value.trim() || 'manifest.csv';
+
+            // Normalize repo string in case user pastes full GitHub URL
+            repo = repo.replace(/^https?:\/\/github\.com\//, '').replace(/\/$/, '');
+
+            if (!repo || !token) {
+                showToast('Please enter both repo (owner/repo) and PAT');
+                return;
+            }
+
+            // Save credentials for usability
+            localStorage.setItem('gh_repo', repo);
+            localStorage.setItem('gh_token', token);
+            localStorage.setItem('gh_branch', branch);
+            localStorage.setItem('gh_path', path);
+
+            state.repo = repo;
+            state.token = token;
+            state.branch = branch;
+            state.path = path;
+
+            btnLoadData.disabled = true;
+            btnLoadData.textContent = 'Fetching Manifest...';
+
+            try {
+                const url = `https://api.github.com/repos/${repo}/contents/${path}?ref=${branch}`;
+                const res = await fetch(url, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Accept': 'application/vnd.github.v3+json'
+                    }
+                });
+
+                if (!res.ok) {
+                    throw new Error(`GitHub API Error (${res.status}): ${res.statusText}`);
+                }
+
+                const data = await res.json();
+                state.fileSha = data.sha;
+
+                const rawCSV = base64ToUtf8(data.content.replace(/\n/g, ''));
+                const {
+                    headers,
+                    rows
+                } = parseCSV(rawCSV);
+
+                if (!rows.length) {
+                    throw new Error('Manifest file is empty or corrupted');
+                }
+
+                state.headers = headers;
+                state.rows = rows;
+
+                showToast(`Loaded ${rows.length} rows successfully!`);
+                setupView.style.display = 'none';
+                labelingView.style.display = 'flex';
+
+                // Auto-skip to the first unlabeled item
+                state.currentIndex = -1;
+                loadNextRow();
+            } catch (err) {
+                alert(err.message);
+            } finally {
+                btnLoadData.disabled = false;
+                btnLoadData.textContent = 'Load Manifest';
+            }
+        });
+
+        // --- Image Loader (Supports Private & Public Repos) ---
+        async function fetchImageBlob(filename) {
+            // If filename is full URL, fetch directly
+            if (/^https?:\/\//i.test(filename)) {
+                const res = await fetch(filename);
+                return await res.blob();
+            }
+
+            // Otherwise fetch via GitHub Contents API with raw header (handles private repos seamlessly)
+            const cleanPath = filename.replace(/^\//, '');
+            const url = `https://api.github.com/repos/${state.repo}/contents/image_dataset/raw_images/${cleanPath}?ref=${state.branch}`;
+
+            const res = await fetch(url, {
+                headers: {
+                    'Authorization': `Bearer ${state.token}`,
+                    'Accept': 'application/vnd.github.raw'
+                }
+            });
+
+            if (!res.ok) {
+                throw new Error(`Failed to load image (${res.status}): ${filename}`);
+            }
+
+            return await res.blob();
+        }
+
+        // --- Display Current Row ---
+        async function renderCurrentItem() {
+            updateProgress();
+
+            if (state.currentIndex === -1 || state.currentIndex >= state.rows.length) {
+                fileNameDisplay.textContent = "All images in this dataset have been labeled! 🎉";
+                captchaImg.style.display = 'none';
+                imgSpinner.style.display = 'none';
+                inputLabel.disabled = true;
+                document.getElementById('btn-submit').disabled = true;
+                return;
+            }
+
+            inputLabel.disabled = false;
+            document.getElementById('btn-submit').disabled = false;
+
+            const row = state.rows[state.currentIndex];
+            fileNameDisplay.textContent = row.filename;
+            inputLabel.value = row.label || '';
+
+            // Prepare UI for image loading
+            imgSpinner.style.display = 'block';
+            captchaImg.style.display = 'none';
+
+            // Revoke previous blob to avoid memory leaks
+            if (state.currentBlobUrl) {
+                URL.revokeObjectURL(state.currentBlobUrl);
+                state.currentBlobUrl = null;
+            }
+
+            try {
+                const blob = await fetchImageBlob(row.filename);
+                state.currentBlobUrl = URL.createObjectURL(blob);
+                captchaImg.src = state.currentBlobUrl;
+                captchaImg.onload = () => {
+                    imgSpinner.style.display = 'none';
+                    captchaImg.style.display = 'block';
+                };
+            } catch (err) {
+                imgSpinner.style.display = 'none';
+                fileNameDisplay.textContent = `❌ ${err.message}`;
+            }
+
+            // Retain focus on input for fast mobile labeling
+            inputLabel.focus();
+        }
+
+        // --- Progress Counter ---
+        function updateProgress() {
+            const total = state.rows.length;
+            if (total === 0) return;
+
+            const labeledCount = state.rows.filter(r => (r.status || '').toLowerCase() === 'labeled').length;
+            const remainingCount = total - labeledCount;
+            const pct = Math.round((labeledCount / total) * 100);
+
+            progressBar.style.width = `${pct}%`;
+            statProgress.textContent = `${labeledCount} of ${total} labeled (${pct}%)`;
+            statRemaining.textContent = `${remainingCount} remaining`;
+        }
+
+        // --- Navigation Logic ---
+        function loadNextRow() {
+            // Find the next index where status is NOT 'labeled'
+            let foundIndex = -1;
+            for (let i = state.currentIndex + 1; i < state.rows.length; i++) {
+                if ((state.rows[i].status || '').toLowerCase() !== 'labeled') {
+                    foundIndex = i;
+                    break;
+                }
+            }
+
+            // If no unlabeled items ahead, wrap check from start
+            if (foundIndex === -1) {
+                for (let i = 0; i <= state.currentIndex; i++) {
+                    if ((state.rows[i].status || '').toLowerCase() !== 'labeled') {
+                        foundIndex = i;
+                        break;
+                    }
+                }
+            }
+
+            state.currentIndex = foundIndex;
+            renderCurrentItem();
+        }
+
+        // --- Submission Handler ---
+        labelForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const value = inputLabel.value.trim();
+
+            if (!value) {
+                showToast('Please type a label before submitting');
+                return;
+            }
+
+            if (state.currentIndex >= 0 && state.currentIndex < state.rows.length) {
+                // Update manifest state in memory
+                state.rows[state.currentIndex].label = value;
+                state.rows[state.currentIndex].status = 'labeled';
+
+                showToast(`Saved "${value}"`, 1200);
+                loadNextRow();
+            }
+        });
+
+        // Skip current row without labeling
+        btnSkip.addEventListener('click', () => {
+            if (state.rows.length === 0) return;
+            // Step to next row index
+            state.currentIndex = (state.currentIndex + 1) % state.rows.length;
+            renderCurrentItem();
+        });
+
+        // --- Export 1: Download CSV ---
+        btnDownload.addEventListener('click', () => {
+            if (!state.rows.length) return;
+            const csvData = serializeCSV(state.rows, state.headers);
+            const blob = new Blob([csvData], {
+                type: 'text/csv;charset=utf-8;'
+            });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.setAttribute('href', url);
+            link.setAttribute('download', state.path.split('/').pop() || 'manifest.csv');
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            showToast('CSV downloaded to device');
+        });
+
+        // --- Export 2: Commit Directly to GitHub ---
+        btnCommit.addEventListener('click', async() => {
+            if (!state.rows.length) return;
+
+            const confirmed = confirm(`Push updated ${state.path} back to ${state.repo} (${state.branch})?`);
+            if (!confirmed) return;
+
+            btnCommit.disabled = true;
+            btnCommit.textContent = 'Committing...';
+
+            try {
+                const updatedCSV = serializeCSV(state.rows, state.headers);
+                const encodedContent = utf8ToBase64(updatedCSV);
+
+                const url = `https://api.github.com/repos/${state.repo}/contents/${state.path}`;
+                const payload = {
+                    message: `Update ${state.path} labels via mobile tool`,
+                    content: encodedContent,
+                    sha: state.fileSha,
+                    branch: state.branch
+                };
+
+                const res = await fetch(url, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${state.token}`,
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/vnd.github.v3+json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!res.ok) {
+                    const errData = await res.json().catch(() => ({}));
+                    throw new Error(errData.message || `Commit failed with status ${res.status}`);
+                }
+
+                const data = await res.json();
+                state.fileSha = data.content.sha; // Update SHA for sequential commits
+                showToast('Successfully committed to GitHub!');
+            } catch (err) {
+                alert(`Error committing to GitHub: ${err.message}`);
+            } finally {
+                btnCommit.disabled = false;
+                btnCommit.textContent = '🚀 Commit to GitHub';
+            }
+        });
+    </script>
+</body>
+
+</html>
